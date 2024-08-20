@@ -11,7 +11,7 @@ import Foundation
 open class Request {
     private let requestProtocol: RequestProtocol
 
-    private let baseUrl: String
+    private let baseUrl: String?
 
     private let version: Version?
 
@@ -43,8 +43,8 @@ open class Request {
     ///   - hasPathParameter: Boolean that determines whether Path has additional parameters passed through query
     public init(
         requestProtocol: RequestProtocol = .https,
-        baseUrl: String,
-        version: Version? = .v1,
+        baseUrl: String? = nil,
+        version: Version? = nil,
         endpoint: String,
         method: Method = .get,
         pathExtension: String = "",
@@ -68,7 +68,7 @@ open class Request {
     /// Constructs API URL with parameters from init()
     private var constructedUrl: String {
         /// Base URL
-        var url = "\(requestProtocol)://\(baseUrl)"
+        var url = "\(requestProtocol)://\(baseUrl ?? Config.main.baseUrl)"
 
         /// API Version
         if version?.rawValue != nil {

@@ -3,6 +3,8 @@
 
 import Foundation
 
+// MARK: - SwiftNetwork
+
 open class SwiftNetwork {
     /// Shared singleton instance
     @MainActor public static let shared = SwiftNetwork()
@@ -85,4 +87,14 @@ open class SwiftNetwork {
         }
         task.resume()
     }
+}
+
+// MARK: - Config
+
+open class Config {
+    public nonisolated(unsafe) static let main = Config()
+
+    private init() {}
+
+    public var baseUrl: String = ""
 }
