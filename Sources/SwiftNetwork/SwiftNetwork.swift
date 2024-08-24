@@ -1,6 +1,7 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 
+import Combine
 import Foundation
 
 // MARK: - SwiftNetwork
@@ -8,8 +9,11 @@ import Foundation
 open class SwiftNetwork {
     /// Shared singleton instance
     @MainActor public static let shared = SwiftNetwork()
+    private var cancellables: Set<AnyCancellable>
 
-    private init() {}
+    private init() {
+        cancellables = Set<AnyCancellable>()
+    }
 
     /// Public handle to execute API Calls
     /// - Parameters:
@@ -68,9 +72,7 @@ open class SwiftNetwork {
                 print("Error: Invalid response")
                 return
             }
-            print(urlRequest.httpMethod!, urlRequest.url!)
-            print("Status Code: \(httpResponse.statusCode)")
-            print("Request Headers: \(String(describing: urlRequest.allHTTPHeaderFields))")
+            Self.printHeaders(from: urlRequest, and: httpResponse)
 
             do {
                 let response = try JSONDecoder().decode(type.self, from: data)
@@ -83,9 +85,69 @@ open class SwiftNetwork {
                 deferBlock()
             }
 
-            print("Response:", String(data: data, encoding: .utf8)!, "\n")
+            Self.printResponse(from: data)
         }
         task.resume()
+    }
+
+    /// Execute API calls using Future
+    /// - Parameters:
+    ///   - request: Request
+    ///   - type: return type<T> for Response
+    /// - Returns: Future<T, Error>
+    open func execute<T: Decodable>(_ request: Request, expecting type: T.Type) -> Future<T, Error> {
+        Future { promise in
+            guard let urlRequest = request.urlRequest else {
+                promise(.failure(SNError.failedToCreateRequest))
+                return
+            }
+
+            URLSession.shared.dataTaskPublisher(for: urlRequest)
+                .tryMap { data, response -> Data in
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        throw SNError.invalidResponse
+                    }
+                    Self.printHeaders(from: urlRequest, and: httpResponse)
+                    Self.printResponse(from: data)
+
+                    return data
+                }
+                .decode(type: type.self, decoder: JSONDecoder())
+                .receive(on: RunLoop.main)
+                .sink(
+                    receiveCompletion: { completion in
+                        if case let .failure(error) = completion {
+                            print("Error:", error.localizedDescription)
+
+                            switch error {
+                            case let decodingError as DecodingError:
+                                promise(.failure(decodingError))
+
+                            default:
+                                promise(.failure(SNError.unexpectedError))
+                            }
+                        }
+                        print("\n")
+                    },
+                    receiveValue: {
+                        promise(.success($0))
+                    }
+                ).store(in: &self.cancellables)
+        }
+    }
+
+    private static func printHeaders(from urlRequest: URLRequest, and httpResponse: HTTPURLResponse) {
+        print(urlRequest.httpMethod!, urlRequest.url!)
+        print("Status Code: \(httpResponse.statusCode)")
+        print("Request Headers: \(String(describing: urlRequest.allHTTPHeaderFields))")
+    }
+
+    private static func printResponse(from data: Data) {
+        print("Response:", String(data: data, encoding: .utf8)!, "\n")
+    }
+
+    deinit {
+        cancellables.forEach { $0.cancel() }
     }
 }
 

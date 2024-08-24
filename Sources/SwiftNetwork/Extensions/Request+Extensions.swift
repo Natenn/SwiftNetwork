@@ -39,6 +39,8 @@ public enum SNError: Error {
     case failedToCreateRequest
     case failedToGetData
     case failedToDecodeJSON
+    case invalidResponse
+    case unexpectedError
 }
 
 // MARK: - Method
