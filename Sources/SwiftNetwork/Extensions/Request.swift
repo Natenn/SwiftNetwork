@@ -119,7 +119,7 @@ open class Request {
 
         /// Add auth token to headers unless instructed otherwise in case of authorisation itself
         if let authToken = Config.main.authToken, needsAuthToken {
-            request.setValue(Config.main.authToken, forHTTPHeaderField: "Authorization")
+            request.setValue(authToken, forHTTPHeaderField: "Authorization")
         }
 
         /// Setting Request Headers
