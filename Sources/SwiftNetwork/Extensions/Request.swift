@@ -43,8 +43,8 @@ open class Request {
     ///   - hasPathParameter: Boolean that determines whether Path has additional parameters passed through query
     public init(
         requestProtocol: RequestProtocol = .https,
-        baseUrl: String? = nil,
-        version: Version? = nil,
+        baseUrl: String? = Config.main.baseUrl,
+        version: Version? = Config.main.version,
         endpoint: String,
         method: Method = .get,
         pathExtension: String = "",
@@ -68,15 +68,19 @@ open class Request {
     /// Constructs API URL with parameters from init()
     private var constructedUrl: String {
         /// Base URL
-        var url = "\(requestProtocol)://\(baseUrl ?? Config.main.baseUrl)"
+        var url = "\(requestProtocol)://"
+
+        if let baseUrl {
+            url.append("\(baseUrl)/")
+        }
 
         /// API Version
         if version?.rawValue != nil {
-            url += "/\(version!.rawValue)"
+            url += "\(version!.rawValue)/"
         }
 
         /// API Endpoint
-        url += "/\(endpoint)"
+        url += "\(endpoint)"
 
         /// Additional path after endpoint
         if !pathExtension.isEmpty {
@@ -112,6 +116,11 @@ open class Request {
 
         /// Request Method defined
         request.httpMethod = method.rawValue
+
+        /// Add auth token to headers unless instructed otherwise in case of authorisation itself
+        if let authToken = Config.main.authToken, needsAuthToken {
+            request.setValue(Config.main.authToken, forHTTPHeaderField: "Authorization")
+        }
 
         /// Setting Request Headers
         if !headers.isEmpty {

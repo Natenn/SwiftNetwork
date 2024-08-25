@@ -158,5 +158,8 @@ open class Config {
 
     private init() {}
 
-    public var baseUrl: String = ""
+    public var baseUrl: String?
+    public var needsAuthToken: Bool = false
+    public var authToken: String?
+    public var version: Version?
 }
