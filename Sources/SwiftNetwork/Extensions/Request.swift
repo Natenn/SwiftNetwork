@@ -17,7 +17,7 @@ open class Request {
 
     private let endpoint: String
 
-    private let method: Method
+    private let method: HTTPMethod
 
     private let pathExtension: String
 
@@ -46,7 +46,7 @@ open class Request {
         baseUrl: String? = Config.main.baseUrl,
         version: Version? = Config.main.version,
         endpoint: String,
-        method: Method = .get,
+        method: HTTPMethod = .get,
         pathExtension: String = "",
         headers: Headers = .emptyHeaders,
         needsAuthToken: Bool = true,
