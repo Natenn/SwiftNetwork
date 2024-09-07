@@ -6,148 +6,73 @@ import Foundation
 
 // MARK: - SwiftNetwork
 
-open class SwiftNetwork {
-    /// Shared singleton instance
-    @MainActor public static let shared = SwiftNetwork()
-    private var cancellables: Set<AnyCancellable>
+public final class SwiftNetwork: Sendable {
+    public static let shared = SwiftNetwork()
 
-    private init() {
-        cancellables = Set<AnyCancellable>()
-    }
+    private init() {}
 
-    /// Public handle to execute API Calls
-    /// - Parameters:
-    ///   - request: constructed Request with desired options
-    ///   - type: return type for Response
-    ///   - success: optional block for success
-    ///   - failure: optional block for failure
-    open func execute<T: Decodable>(
+    public func execute<T: Decodable>(
         _ request: Request,
         expecting type: T.Type,
         success: @escaping @Sendable (T) -> Void = { _ in },
-        failure: @escaping @Sendable (_ error: Error) -> Void = { _ in },
-        deferBlock: @escaping @Sendable () -> Void = {}
-    ) {
-        let completion: @Sendable (Result<T, Error>) -> Void = { response in
-            switch response {
-            case let .success(response):
-                success(response)
-            case let .failure(error):
-                print("Error:", error.localizedDescription)
-                failure(error)
-            }
+        failure: @escaping @Sendable (_ error: Error) -> Void = { _ in }
+    ) async throws {
+        do {
+            let (data, response) = try await getData(request, expecting: type)
+            success(data)
+        } catch {
+            printError(from: error)
+            failure(error)
         }
-
-        executeTask(
-            request,
-            expecting: type,
-            completion: completion,
-            deferBlock: deferBlock
-        )
     }
 
-    /// private function that executes the API calls
-    /// - Parameters:
-    ///   - request: given Request with desired parameters
-    ///   - type: return type for Response
-    ///   - completion: Completion Handler to notify its executor
-    private func executeTask<T: Decodable>(
+    private func getData<T: Decodable>(
         _ request: Request,
-        expecting type: T.Type,
-        completion: @escaping @Sendable (Result<T, Error>) -> Void = { _ in },
-        deferBlock: @escaping @Sendable () -> Void = {}
-    ) {
+        expecting type: T.Type
+    ) async throws -> (T, HTTPURLResponse) {
         guard let urlRequest = request.urlRequest else {
-            completion(.failure(SNError.failedToCreateRequest))
-            return
+            throw SNError.failedToCreateRequest
         }
 
-        let task = URLSession.shared.dataTask(with: urlRequest) { data, response, error in
-            guard let data = data, error == nil else {
-                completion(.failure(error ?? SNError.failedToGetData))
-                return
-            }
+        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("Error: Invalid response")
-                return
-            }
-            Self.printHeaders(from: urlRequest, and: httpResponse)
-
-            do {
-                let response = try JSONDecoder().decode(type.self, from: data)
-                completion(.success(response))
-            } catch {
-                completion(.failure(SNError.failedToDecodeJSON))
-            }
-
-            defer {
-                deferBlock()
-            }
-
-            Self.printResponse(from: data)
+        guard let httpResponse = urlResponse as? HTTPURLResponse else {
+            throw SNError.invalidResponse
         }
-        task.resume()
+        printHeaders(from: urlRequest, and: httpResponse)
+        printResponse(from: data)
+
+        guard let data = decode(type.self, from: data) else {
+            throw SNError.failedToDecodeJSON
+        }
+
+        return (data, httpResponse)
     }
 
-    /// Execute API calls using Future
-    /// - Parameters:
-    ///   - request: Request
-    ///   - type: return type<T> for Response
-    /// - Returns: Future<T, Error>
-    open func execute<T: Decodable>(_ request: Request, expecting type: T.Type) -> Future<T, Error> {
-        Future { promise in
-            guard let urlRequest = request.urlRequest else {
-                promise(.failure(SNError.failedToCreateRequest))
-                return
+    private func decode<T: Decodable>(_ type: T.Type, from data: Data) -> T? {
+        do {
+            if type == EmptyResponse.self {
+                return EmptyResponse(data: data) as? T
             }
-
-            URLSession.shared.dataTaskPublisher(for: urlRequest)
-                .tryMap { data, response -> Data in
-                    guard let httpResponse = response as? HTTPURLResponse else {
-                        throw SNError.invalidResponse
-                    }
-                    Self.printHeaders(from: urlRequest, and: httpResponse)
-                    Self.printResponse(from: data)
-
-                    return data
-                }
-                .decode(type: type.self, decoder: JSONDecoder())
-                .receive(on: RunLoop.main)
-                .sink(
-                    receiveCompletion: { completion in
-                        if case let .failure(error) = completion {
-                            print("Error:", error.localizedDescription)
-
-                            switch error {
-                            case let decodingError as DecodingError:
-                                promise(.failure(decodingError))
-
-                            default:
-                                promise(.failure(SNError.unexpectedError))
-                            }
-                        }
-                        print("\n")
-                    },
-                    receiveValue: {
-                        promise(.success($0))
-                    }
-                ).store(in: &self.cancellables)
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            return nil
         }
     }
 
-    private static func printHeaders(from urlRequest: URLRequest, and httpResponse: HTTPURLResponse) {
-        print(urlRequest.httpMethod!, urlRequest.url!)
+    private func printHeaders(from urlRequest: URLRequest, and httpResponse: HTTPURLResponse) {
+        print()
+        print(urlRequest.httpMethod.string, urlRequest.url.string)
         print("Status Code: \(httpResponse.statusCode)")
-        print("Request Headers: \(String(describing: urlRequest.allHTTPHeaderFields))")
+        print("Request Headers: \(urlRequest.allHTTPHeaderFields.string)")
     }
 
-    private static func printResponse(from data: Data) {
-        print("Response:", String(data: data, encoding: .utf8)!, "\n")
+    private func printResponse(from data: Data) {
+        print("Response:", String(data: data, encoding: .utf8).string)
     }
 
-    deinit {
-        cancellables.forEach { $0.cancel() }
+    private func printError(from error: Error) {
+        print("Error:", error)
     }
 }
 
@@ -162,4 +87,31 @@ open class Config {
     public var needsAuthToken: Bool = false
     public var authToken: String?
     public var version: Version?
+}
+
+public extension String? {
+    var string: String {
+        if let self {
+            return self
+        }
+        return "nil"
+    }
+}
+
+public extension [String: String]? {
+    var string: [String: String] {
+        if let self {
+            return self
+        }
+        return ["nil": "nil"]
+    }
+}
+
+public extension URL? {
+    var string: String {
+        if let self {
+            return self.absoluteString
+        }
+        return "nil"
+    }
 }
