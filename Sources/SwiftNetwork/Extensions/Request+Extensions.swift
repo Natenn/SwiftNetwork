@@ -32,6 +32,16 @@ public extension Request.Body {
     static var emptyBody: Request.Body { return [:] }
 }
 
+// MARK: - EmptyResponse
+
+public struct EmptyResponse: Decodable {
+    public private(set) var data: Data?
+
+    public init(data: Data) {
+        self.data = data
+    }
+}
+
 // MARK: - SNError
 
 /// API Errors
@@ -43,7 +53,7 @@ public enum SNError: Error {
     case unexpectedError
 }
 
-// MARK: - Method
+// MARK: - HTTPMethod
 
 /// Request Method
 public enum HTTPMethod: String {
