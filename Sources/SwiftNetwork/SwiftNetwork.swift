@@ -1,13 +1,14 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 
-import Combine
 import Foundation
 
 public final class SwiftNetwork: Networkable, Sendable {
-    public static let shared = SwiftNetwork()
+    private let urlSession: URLSessionProtocol
 
-    private init() {}
+    public init(urlSession: URLSessionProtocol = URLSession.shared) {
+        self.urlSession = urlSession
+    }
 
     public func execute<T: Decodable>(
         _ request: Request,
@@ -16,7 +17,7 @@ public final class SwiftNetwork: Networkable, Sendable {
         failure: @escaping @Sendable (_ error: Error) -> Void = { _ in }
     ) async throws {
         do {
-            let (data, response) = try await getData(request, expecting: type)
+            let (data, _) = try await getData(request, expecting: type)
             success(data)
         } catch {
             printError(from: error)
@@ -32,7 +33,7 @@ public final class SwiftNetwork: Networkable, Sendable {
             throw SNError.failedToCreateRequest
         }
 
-        let (data, urlResponse) = try await URLSession.shared.data(for: urlRequest)
+        let (data, urlResponse) = try await urlSession.data(for: urlRequest)
 
         guard let httpResponse = urlResponse as? HTTPURLResponse else {
             throw SNError.invalidResponse
