@@ -4,9 +4,7 @@
 import Combine
 import Foundation
 
-// MARK: - SwiftNetwork
-
-public final class SwiftNetwork: Sendable {
+public final class SwiftNetwork: Networkable, Sendable {
     public static let shared = SwiftNetwork()
 
     private init() {}
@@ -73,45 +71,5 @@ public final class SwiftNetwork: Sendable {
 
     private func printError(from error: Error) {
         print("Error:", error)
-    }
-}
-
-// MARK: - Config
-
-open class Config {
-    public nonisolated(unsafe) static let main = Config()
-
-    private init() {}
-
-    public var baseUrl: String?
-    public var needsAuthToken: Bool = false
-    public var authToken: String?
-    public var version: Version?
-}
-
-public extension String? {
-    var string: String {
-        if let self {
-            return self
-        }
-        return "nil"
-    }
-}
-
-public extension [String: String]? {
-    var string: [String: String] {
-        if let self {
-            return self
-        }
-        return ["nil": "nil"]
-    }
-}
-
-public extension URL? {
-    var string: String {
-        if let self {
-            return self.absoluteString
-        }
-        return "nil"
     }
 }
